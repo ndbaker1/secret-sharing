@@ -59,11 +59,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn shamir_recover_test() {
+    fn shamir_e2e_test() {
         let secret_bytes = b"32byte message for testing funcs";
         let shares = split(secret_bytes, 3, 5).unwrap();
         println!("generated secrets:\n{shares:#?}");
         let bytes = combine(&shares);
         assert_eq!(secret_bytes, bytes.as_slice());
+    }
+
+    #[test]
+    fn shamir_recover_test() {
+        // utilize the function f(x) = x^2 + 5
+        let points = [(1u8, 6u8), (2u8, 9u8), (4u8, 21u8)];
+        // map the points into shared key strings
+        let shares: Vec<String> = points
+            .iter()
+            .map(|(x, y)| {
+                let encoded_y = String::from_utf8(y.to_be_bytes().to_vec()).unwrap();
+                format!("{}-{}", x, encoded_y)
+            })
+            .collect();
+
+        assert_eq!(Some(&5), combine(&shares).last());
     }
 }

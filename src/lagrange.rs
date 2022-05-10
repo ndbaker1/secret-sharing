@@ -63,4 +63,19 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn interpolate_x_squared_plus_1() {
+        assert_eq!(
+            17f64,
+            interpolate(
+                4.into(),
+                &[
+                    (1.into(), 2.into()),
+                    (2.into(), 5.into()),
+                    (3.into(), 10.into()),
+                ],
+            )
+        );
+    }
 }
