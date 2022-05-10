@@ -1,4 +1,5 @@
 use clap::Parser;
+use secret_sharing::shamir;
 
 /// Program to split secrets using Shamir-Shared Secret Scheme
 #[derive(Parser)]
@@ -19,4 +20,8 @@ struct ShamirSplitArgs {
 
 fn main() {
     let args = ShamirSplitArgs::parse();
+    println!(
+        "{:X?}",
+        shamir::split(args.secret.as_bytes(), args.threshold, args.share_count)
+    );
 }

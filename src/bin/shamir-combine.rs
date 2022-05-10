@@ -1,4 +1,5 @@
 use clap::Parser;
+use secret_sharing::shamir;
 
 /// Program to combine secrets using Shamir-Shared Secret Scheme
 #[derive(Parser)]
@@ -11,4 +12,5 @@ struct ShamirCombineArgs {
 
 fn main() {
     let args = ShamirCombineArgs::parse();
+    println!("{:?}", shamir::combine(&args.shares));
 }

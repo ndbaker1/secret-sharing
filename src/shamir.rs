@@ -3,13 +3,21 @@
 //! goal to also be compatible with GNU ssss implementation: http://point-at-infinity.org/ssss/
 //!
 
+use crate::lagrange;
+
 pub fn combine(shares: &[String]) -> Vec<u8> {
     let keyed_shares: Vec<_> = shares
         .into_iter()
         .map(|share| parse_share_str(&share))
         .collect();
 
-    Vec::new() // TODO
+    println!("{keyed_shares:#?}");
+
+    let f_at_0 = lagrange::interpolate(0f64, &keyed_shares);
+
+    println!("{f_at_0}");
+
+    (f_at_0 as u64).to_be_bytes().to_vec()
 }
 
 pub fn split(secret_bytes: &[u8], k: u64, n: u64) -> Result<Vec<String>, ()> {
@@ -29,15 +37,21 @@ pub fn split(secret_bytes: &[u8], k: u64, n: u64) -> Result<Vec<String>, ()> {
     Ok(Vec::new())
 }
 
-fn parse_share_str(share: &str) -> (u64, Vec<u8>) {
-    let (x, hex) = share.split_at(share.find('-').unwrap());
-    // TODO
-    (0, Vec::new())
+fn parse_share_str(share: &str) -> (f64, f64) {
+    let split: Vec<_> = share.split('-').collect();
+    let (x, hex) = (split[0], split[1]);
+    (x.parse().unwrap(), hex_to_f64(hex))
 }
 
 fn gen_coefficients(n: u64 /* , prime: f64 */) -> Vec<u64> {
     // TODO
     Vec::new()
+}
+
+fn hex_to_f64(hex_str: &str) -> f64 {
+    hex_str
+        .bytes()
+        .fold(0f64, |acc, next| acc * 8f64 + f64::from(next))
 }
 
 #[cfg(test)]
