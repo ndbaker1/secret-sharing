@@ -1,4 +1,4 @@
-# Shamir Secret Sharing
+# Shamir's Secret Sharing
 
 ## Details 
 Secret Sharing implementation in Rust using `num-bigint` to process very large
