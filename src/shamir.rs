@@ -1,40 +1,63 @@
-//! Interface for Shamir Secret Sharing split and coming operations
+//! Interface for Shamir Secret Sharing Split and Combine operations
 //!
-//! goal to also be compatible with GNU ssss implementation: http://point-at-infinity.org/ssss/
+//! reference the GNU ssss implementation: http://point-at-infinity.org/ssss/
 
 use crate::lagrange;
 
-pub fn combine(shares: &[(lagrange::NBase, lagrange::NBase)]) -> Vec<u8> {
-    let f_at_0 = lagrange::interpolate(0, &shares);
+use num::{BigInt, Signed};
+use num_bigint::{RandBigInt, Sign};
+use rand;
 
-    f_at_0.to_be_bytes().to_vec()
+/// Shamir Secret Sharing Scheme Combine Operation
+///
+/// Takes a set of pairs of points which represent shares
+/// to a secret that can be recovered by computing origin
+/// f(0) of the curve belonging to the points
+pub fn combine(shares: &[(BigInt, BigInt)]) -> BigInt {
+    lagrange::interpolate(BigInt::from(0), shares)
 }
 
-pub fn split(
-    secret_bytes: &[u8],
-    k: u8,
-    n: u8,
-) -> Result<Vec<(lagrange::NBase, lagrange::NBase)>, ()> {
-    //let mut rng = rand::thread_rng();
+/// Shamir Secret Sharing Scheme Split Operation
+///
+/// Takes a series of bytes as the secret, and outputs
+/// several pairs of points which hold shares to the secret
+pub fn split(secret_bytes: &[u8], t: u8, n: u8) -> Vec<(BigInt, BigInt)> {
+    let secret = BigInt::from_bytes_be(Sign::Plus, secret_bytes);
 
-    // let secret_to_int = 0;
-    // let mut coefficients = vec![secret_to_int];
-    // coefficients.extend((0..k).map(|_| 0 /* rand */).collect());
+    // Generate coefficients for the curve with
+    // the secret at the inital offset
+    let mut coefficients = vec![secret];
+    coefficients.extend_from_slice(&gen_coefficients::<512>(t - 1));
 
-    //let shares = gen_coefficients(n).iter().map(|x| {
-    //    // go from highest to lowest degree to compute using horner's polynomial expansion
-    //    let y = 0;
-
-    //    (x, y)
-    //});
-
-    Ok(Vec::new())
+    // Construct `n` shares from the curve
+    (1..=n)
+        .into_iter()
+        .map(BigInt::from)
+        .map(|x| (x.clone(), horner(x, &coefficients)))
+        .collect()
 }
 
 /// Generates random coefficients for the shamir sharing scheme curve
-fn gen_coefficients(n: u8 /* , prime: f64 */) -> Vec<u64> {
-    // TODO
-    Vec::new()
+///
+/// * `const R` - number of bits in the random number generation
+fn gen_coefficients<const R: u64>(n: u8) -> Vec<BigInt> {
+    let mut rng = rand::thread_rng();
+    (0..n)
+        .into_iter()
+        .map(|_| rng.gen_bigint(R))
+        .map(|f| &f * f.signum()) // Set the sign to positive
+        .collect()
+}
+
+/// Horner coefficient polynomial expansion
+///
+/// Expects to be passed and a slice of coefficients where
+/// `coefficients = [a_0, a_1, a_2, .., a_n]`
+fn horner(x: BigInt, coefficients: &[BigInt]) -> BigInt {
+    coefficients
+        .iter()
+        .rev()
+        .fold(0.into(), |sum, c| sum * &x + c)
 }
 
 #[cfg(test)]
@@ -42,28 +65,45 @@ mod tests {
     use super::*;
 
     #[test]
-    fn shamir_e2e_test() {
+    fn shamir_e2e_test_32bytes() {
         let secret_bytes = b"32byte message for testing funcs";
 
-        let shares = split(secret_bytes, 3, 5).unwrap();
+        let shares = split(secret_bytes, 3, 5);
         let bytes = combine(&shares);
 
-        assert_eq!(secret_bytes, bytes.as_slice());
+        assert_eq!(BigInt::from_bytes_be(Sign::Plus, secret_bytes), bytes);
     }
 
     #[test]
-    fn shamir_recover_test() {
-        // utilize the function f(x) = x^2 + 5
-        let points = [(1u8, 6u8), (2u8, 9u8), (4u8, 21u8)];
-        // map the points into shared key strings
-        let shares: Vec<String> = points
-            .iter()
-            .map(|(x, y)| {
-                let encoded_y = String::from_utf8(y.to_be_bytes().to_vec()).unwrap();
-                format!("{}-{}", x, encoded_y)
-            })
-            .collect();
+    fn shamir_e2e_test_1byte() {
+        let secret_bytes = b"t";
 
-        // assert_eq!(Some(&5), combine(&shares).last());
+        let shares = split(secret_bytes, 3, 3);
+        let bytes = combine(&shares);
+
+        assert_eq!(BigInt::from_bytes_be(Sign::Plus, secret_bytes), bytes);
+    }
+
+    #[test]
+    fn shamir_e2e_test_repeat_check() {
+        let secret_bytes = b"secret text";
+
+        // Detect off by 1 or rounding errors
+        for _ in 0..100 {
+            let shares = split(secret_bytes, 3, 9);
+            let bytes = combine(&[shares[0].clone(), shares[5].clone(), shares[8].clone()]);
+
+            assert_eq!(BigInt::from_bytes_be(Sign::Plus, secret_bytes), bytes);
+        }
+    }
+
+    #[test]
+    fn shamir_bad_shares() {
+        let secret_bytes = b"t";
+
+        let shares = split(secret_bytes, 3, 5);
+        let bytes = combine(&shares[0..2]);
+
+        assert_ne!(BigInt::from_bytes_be(Sign::Plus, secret_bytes), bytes);
     }
 }
