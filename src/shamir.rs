@@ -27,7 +27,14 @@ pub fn split(secret_bytes: &[u8], t: u8, n: u8) -> Vec<(BigInt, BigInt)> {
     // Generate coefficients for the curve with
     // the secret at the inital offset
     let mut coefficients = vec![secret];
-    coefficients.extend_from_slice(&gen_coefficients::<512>(t - 1));
+    // defaults to 512 bits of entropy, which is actually 256 because all negatives are converted
+    // to positive by using the signum.
+    coefficients.extend_from_slice(
+        &gen_coefficients::<512>(t - 1)
+            .into_iter()
+            .map(|f| &f * f.signum())
+            .collect::<Vec<_>>(),
+    );
 
     // Construct `n` shares from the curve
     (1..=n)
@@ -42,11 +49,7 @@ pub fn split(secret_bytes: &[u8], t: u8, n: u8) -> Vec<(BigInt, BigInt)> {
 /// * `const R` - number of bits in the random number generation
 fn gen_coefficients<const R: u64>(n: u8) -> Vec<BigInt> {
     let mut rng = rand::thread_rng();
-    (0..n)
-        .into_iter()
-        .map(|_| rng.gen_bigint(R))
-        .map(|f| &f * f.signum()) // Set the sign to positive
-        .collect()
+    (0..n).into_iter().map(|_| rng.gen_bigint(R)).collect()
 }
 
 /// Horner coefficient polynomial expansion
