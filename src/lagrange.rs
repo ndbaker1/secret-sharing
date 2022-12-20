@@ -1,25 +1,35 @@
 //! Lagrange Interpolation for computing a polynomial of degree k from k distinct points
-//!
 
-/// compute the value of f(x) given the necessary amount of points to interpolate the function
-pub fn interpolate(x: f64, f_set: &[(f64, f64)]) -> f64 {
-    let mut lagrange_basis_set = Vec::new();
-    for (outer, _) in f_set {
-        let mut basis = 1f64;
-        // ignore x values that are the same, because they will reduce to 1
-        for (inner, _) in f_set.iter().filter(|&(inner, _)| inner != outer) {
-            // compute lagrange basis
-            let numerator = x - inner;
-            let denominator = outer - inner;
-            basis = basis * numerator / denominator;
-        }
-        lagrange_basis_set.push(basis);
-    }
+pub(crate) type NBase = i128;
 
-    lagrange_basis_set
+const GF: NBase = 288;
+
+/// Using the Lagrange Polynomial Interpolation method,
+/// compute f(x) given an adequate number of points
+/// from the function, where `num_points = degree(p(x)) + 1`
+pub fn interpolate(x: NBase, points: &[(NBase, NBase)]) -> NBase {
+    points
         .iter()
-        .zip(f_set.iter().map(|(_, y)| y))
-        .fold(0.into(), |acc, (y, basis)| acc + y * basis)
+        // Computing Lagrange Basis Polynomials for each distinct point
+        .map(|(x_inner, y)| {
+            let (numerator, denominator) = points
+                .iter()
+                // ignore similar x's to avoid division-by-zero
+                .filter(|(x_outer, _)| x_outer != x_inner)
+                .fold((1, 1), |frac, (x_outer, _)| {
+                    let numerator_step = x - x_outer;
+                    let denominator_step = x_inner - x_outer;
+
+                    (frac.0 * numerator_step, frac.1 * denominator_step)
+                });
+
+            (numerator / denominator, y)
+        })
+        // Horner's expansion of polynomial coefficients using fold operation
+        .fold(0, |acc, (basis, y)| {
+            let sum = acc + y * basis;
+            sum.rem_euclid(GF)
+        })
 }
 
 #[cfg(test)]
@@ -28,54 +38,13 @@ mod tests {
 
     #[test]
     fn interpolate_test() {
-        assert_eq!(
-            0f64,
-            interpolate(0.into(), &[(1.into(), 1.into()), (2.into(), 2.into())])
-        );
-    }
-
-    #[test]
-    fn interpolate_x_squared() {
-        assert_eq!(
-            16f64,
-            interpolate(
-                4.into(),
-                &[
-                    (1.into(), 1.into()),
-                    (2.into(), 4.into()),
-                    (3.into(), 9.into()),
-                ],
-            )
-        );
-    }
-
-    #[test]
-    fn interpolate_x_plus_1_squared() {
-        assert_eq!(
-            25f64,
-            interpolate(
-                4.into(),
-                &[
-                    (1.into(), 4.into()),
-                    (2.into(), 9.into()),
-                    (3.into(), 16.into()),
-                ],
-            )
-        );
-    }
-
-    #[test]
-    fn interpolate_x_squared_plus_1() {
-        assert_eq!(
-            17f64,
-            interpolate(
-                4.into(),
-                &[
-                    (1.into(), 2.into()),
-                    (2.into(), 5.into()),
-                    (3.into(), 10.into()),
-                ],
-            )
-        );
+        // f(x) = x ; f(0) = 0
+        assert_eq!(0, interpolate(0, &[(1, 1), (2, 2)]));
+        // f(x) = x^2; f(4) = 16
+        assert_eq!(16, interpolate(4, &[(1, 1), (2, 4), (3, 9)]));
+        // f(x) = (x + 1)^2; f(4) = 25
+        assert_eq!(25, interpolate(4, &[(1, 4), (2, 9), (3, 16)]));
+        // f(x) = x^2 + 1; f(4) = 17
+        assert_eq!(17, interpolate(4, &[(1, 2), (2, 5), (3, 10)]));
     }
 }
